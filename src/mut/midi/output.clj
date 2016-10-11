@@ -125,7 +125,8 @@
   (->MidiInstruction (opcode-of :all-notes-off) channel 0 0))
 
 (defn all-sound-off
-  [& {:keys [channel] :or {channel *channel*}}])
+  [& {:keys [channel] :or {channel *channel*}}]
+  (->MidiInstruction (opcode-of :all-sound-off) channel 0 0))
 
 (defn control-change
   [control value & {:keys [channel] :or {channel *channel*}}]
