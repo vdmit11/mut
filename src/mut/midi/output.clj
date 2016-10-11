@@ -52,8 +52,7 @@
   3. A bunch of helper constructor functions for MidiInstruction:
      note-on, note-off, pitch-bend, control-change, pause, etc.
   "
-  (:import (javax.sound.midi MidiSystem Synthesizer MidiChannel)))
-
+  (:import [javax.sound.midi MidiChannel MidiSystem Synthesizer]))
 
 ; forward declarations
 (declare reset-all-channels opcode-of)
@@ -165,7 +164,7 @@
 ;; The .open() of the Synthesizer is expensive so we do it once when
 ;; the module is loaded and keep it in this state in the global variable.
 (def ^{:private true :tag Synthesizer} synthesizer (MidiSystem/getSynthesizer))
-(def ^{:private true :tag 'objects} channels (. synthesizer getChannels))
+(def ^{:private true :tag 'objects} channels (.getChannels synthesizer))
 (.open synthesizer)
 
 
@@ -174,29 +173,29 @@
   [instructions]
   ;; doall is used to make evaluation happen before we do time sensitive operations
   (doseq [^MidiInstruction instruction (doall instructions)]
-    (let [opcode (. instruction opcode)
-          channel (. instruction channel)
-          parameter1 (. instruction parameter1)
-          parameter2 (. instruction parameter2)
+    (let [opcode (.opcode instruction)
+          channel (.channel instruction)
+          parameter1 (.parameter1 instruction)
+          parameter2 (.parameter2 instruction)
           ^MidiChannel co (aget channels channel)]
       ;; the hardcoded opcodes are ugly, but I can't use symbolic
       ;; names here because of the way "case" handles the clauses
       (case opcode
         0 (Thread/sleep parameter1)
-        1  (. co allNotesOff)
-        2  (. co allSoundOff)
-        3  (. co controlChange parameter1 parameter2)
-        4  (. co noteOff parameter1 parameter2)
-        5  (. co noteOn parameter1 parameter2)
-        6  (. co programChange parameter1 parameter2)
-        7  (. co resetAllControllers)
-        8  (. co setChannelPressure parameter1)
-        9  (. co setMono parameter1)
-        10 (. co setMute parameter1)
-        11 (. co setOmni parameter1)
-        12 (. co setPitchBend parameter1)
-        13 (. co setPolyPressure parameter1 parameter2)
-        14 (. co setSolo parameter1)
+        1  (.allNotesOff co)
+        2  (.allSoundOff co)
+        3  (.controlChange co parameter1 parameter2)
+        4  (.noteOff co parameter1 parameter2)
+        5  (.noteOn co parameter1 parameter2)
+        6  (.programChange co parameter1 parameter2)
+        7  (.resetAllControllers co)
+        8  (.setChannelPressure co parameter1)
+        9  (.setMono co parameter1)
+        10 (.setMute co parameter1)
+        11 (.setOmni co parameter1)
+        12 (.setPitchBend co parameter1)
+        13 (.setPolyPressure co parameter1 parameter2)
+        14 (.setSolo co parameter1)
         (throw (new Exception (format "unsupported opcode: %d" opcode))))))
   (reset-all-channels))
 
@@ -220,24 +219,26 @@
    :set-solo 14 })
 
 
-(defn- reset-all-channels []
+(defn- reset-all-channels
   "Reset all channels of the global 'synthesizer' singleton to the default state."
-    (amap channels channel-idx _
-          (doto ^MidiChannel (aget channels channel-idx)
-            (.allNotesOff)
-            (.allSoundOff)
-            (.resetAllControllers)
-            (.programChange 0 0)
-            (.setOmni false)
-            (.setMono false)
-            (.setSolo false)
-            (.setMute false)))
-    nil)
+  []
+  (amap channels channel-idx _
+        (doto ^MidiChannel (aget channels channel-idx)
+          (.allNotesOff)
+          (.allSoundOff)
+          (.resetAllControllers)
+          (.programChange 0 0)
+          (.setOmni false)
+          (.setMono false)
+          (.setSolo false)
+          (.setMute false)))
+  nil)
 
 
 
-(defn play-midi-chromatic-demo []
+(defn play-midi-chromatic-demo
   "Play a sequence of all available MIDI notes."
+  []
   (play-midi
    (mapcat
     #(list
@@ -247,8 +248,9 @@
     (range 0 127))))
 
 
-(defn midi-benchmark []
+(defn midi-benchmark
   "Do NoteOff operation a lot of times.
    Useful for tuning performance and memory usage."
+  []
   (let [sequence (doall (repeatedly 10000000 #(note-off 0)))]
     (time (play-midi sequence))))
