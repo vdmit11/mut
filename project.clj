@@ -1,4 +1,13 @@
-(defproject cear "SNAPSHOT"
+(defproject mut "SNAPSHOT"
+  :jvm-opts
+  ^:replace
+  ["-server"
+   "-Xms512m" "-Xmx1g"
+   "-XX:+UseG1GC"
+   "-XX:MaxGCPauseMillis=1"
+   "-XX:TieredStopAtLevel=1"
+   "-XX:+UseTLAB"]
+
   :description "Music Tool"
   :url "https://github.com/vdmit11/mut"
   :license {:name "Public Domain"
@@ -7,11 +16,12 @@
   :src-paths ["src/"]
   :test-paths ["src/"]
   :main mut.core
-  :dependencies [[org.clojure/clojure "1.8.0"]
+  :dependencies [[org.clojure/clojure "1.9.0-alpha14"]
                  [org.clojure/data.generators "0.1.2"]
-                 [acyclic/squiggly-clojure "0.1.6"]]
+                 [kunstmusik/pink "0.3.0"]
+                 [acyclic/squiggly-clojure "0.1.7"]]
   :plugins [[lein-ancient "0.6.10"]
-            [cider/cider-nrepl "0.14.0-SNAPSHOT"]
+            [cider/cider-nrepl "0.14.0"]
             [jonase/eastwood "0.2.3"]
             [lein-kibit "0.1.2"]
             [lein-bikeshed "0.3.0"]
