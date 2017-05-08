@@ -1,12 +1,13 @@
 (ns mut.instruments)
 
-(defprotocol LocationKnob
+(defprotocol LocationControl
   (get-location [instrument])
   (set-location! [instrument new-location-val]))
 
-(defprotocol VolumeKnob
+(defprotocol VolumeControl
   (get-volume [instrument])
   (set-volume! [instrument new-volume-val]))
 
-(defprotocol WaveInstrument
-  (play-wave [instrument amp freq]))
+(defprotocol ToneControl
+  (get-tone [instrument])
+  (set-tone! [instrument new-tone-val]))

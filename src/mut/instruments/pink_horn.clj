@@ -1,47 +1,60 @@
 (ns mut.instruments.pink-horn
   (:require [mut.instruments :as instruments]
-            [pink.instruments.horn :refer [horn]]))
+            pink.instruments.horn
+            [pink.util :refer [mul reader]]))
 
 (defrecord PinkHorn
-    [^clojure.lang.Atom loc
-     ^clojure.lang.Atom vol]
+    [^clojure.lang.Atom location
+     ^clojure.lang.Atom volume]
 
-  instruments/VolumeKnob
-  (get-volume [_] @vol)
-  (set-volume! [_ val] (reset! vol val))
+  clojure.lang.IFn
+  (invoke [_ amp freq]
+    (pink.instruments.horn/horn (* @volume amp) freq @location))
 
-  instruments/LocationKnob
-  (get-location [_] @loc)
-  (set-location! [_ val] (reset! loc val))
+  instruments/VolumeControl
+  (get-volume [_] @volume)
+  (set-volume! [_ val] (reset! volume val))
 
-  instruments/WaveInstrument
-  (play-wave [_ amp freq]
-    (horn (* amp @vol) freq @loc)))
+  instruments/LocationControl
+  (get-location [_] @location)
+  (set-location! [_ val] (reset! location val)))
+
+
+(defn make-horn [& {:keys [volume location]
+                    :or {volume 0.5 location 0}}]
+  (->PinkHorn (atom location) (atom volume)))
 
 
 ;; demo
 (comment
   (require '[mut.engine :refer [start clear stop add-afunc]])
-  (require '[mut.instruments :refer [play-wave set-volume! set-location!]])
 
-  (def h (->PinkHorn (atom 0.5) (atom 1)))
+  (def horn (make-horn))
 
   (start)
+  (Thread/sleep 50)
 
   ;; adjust volume
-  (add-afunc (play-wave h 0.5 440))
-  (set-volume! h 0.5)
-  (add-afunc (play-wave h 0.5 440))
-  (set-volume! h 1)
+  (instruments/set-volume! horn 0.25)
+  (add-afunc (horn 0.5 440))
+  (Thread/sleep 1000)
+
+  (instruments/set-volume! horn 0.75)
+  (add-afunc (horn 0.5 440))
+  (Thread/sleep 1000)
 
   ;; adjust location
-  (add-afunc (play-wave h 0.5 440))
-  (set-location! h -1)
-  (add-afunc (play-wave h 0.5 440))
-  (set-location! h 0)
-  (add-afunc (play-wave h 0.5 440))
-  (set-location! h 1)
-  (add-afunc (play-wave h 0.5 440))
+  (instruments/set-location! horn -1)
+  (add-afunc (horn 0.5 440))
+  (Thread/sleep 1000)
+
+  (instruments/set-location! horn 0)
+  (add-afunc (horn 0.5 440))
+  (Thread/sleep 1000)
+
+  (instruments/set-location! horn 1)
+  (add-afunc (horn 0.5 440))
+  (Thread/sleep 1000)
 
   (clear)
   (stop)
