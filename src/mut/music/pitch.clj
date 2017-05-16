@@ -1,7 +1,7 @@
 (ns mut.music.pitch
   (:require [mut.music.tuning :as tuning]))
 
-(defprotocol Pitch
+(defprotocol HasPitch
   (hz-of [mo])
   (name-of [mo])
   (keynum-of [mo]))
@@ -23,8 +23,3 @@
 
 (defn hz->keynum [hz]
   (+ *reference-keynum* (hz->distance hz)))
-
-(extend-type java.lang.Number
-  Pitch
-  (hz-of [n] (keynum->hz n))
-  (keynum-of [n] n))
