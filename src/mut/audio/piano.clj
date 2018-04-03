@@ -1,6 +1,6 @@
-(ns mut.instruments.piano
+(ns mut.audio.piano
   (:require pink.instruments.piano
-            [mut.instruments :refer [at MusicObject->AudioEngineEvents]]
+            [mut.audio :refer [at MusicObject->AudioEngineEvents]]
             [mut.music.pitch :as pitch]))
 
 (defrecord Piano [])
@@ -24,7 +24,7 @@
 
 ;; demo
 (comment
-  (require '[mut.instruments :refer [start-engine stop-engine clear-engine play]])
+  (require '[mut.audio :refer [start-engine stop-engine clear-engine play]])
 
   (start-engine)
   (Thread/sleep 100)
