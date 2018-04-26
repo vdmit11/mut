@@ -1,4 +1,4 @@
-(ns mut.instruments
+(ns mut.audio
   (:require pink.event pink.simple))
 
 ;; XXX: for now, these functions are just aliases for pink.simple API.
