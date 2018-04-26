@@ -1,5 +1,8 @@
 (ns mut.music.tuning)
 
+(def AUDIBLE_HZ_MIN 20)
+(def AUDIBLE_HZ_MAX 20000)
+
 (defprotocol Tuning
   (ratio->distance [_ hz-ratio])
   (distance->ratio [_ tone-distance]))

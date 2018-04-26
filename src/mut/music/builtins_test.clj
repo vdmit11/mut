@@ -1,10 +1,8 @@
 (ns mut.music.builtins-test
   (:require [clojure.test :refer [are deftest]]
+            [mut.test-utils :refer [approx=]]
             mut.music.builtins
             [mut.music.pitch :as pitch]))
-
-(defn- approx= [n1 n2]
-  (> 0.001 (Math/abs (- n1 n2))))
 
 (deftest number-as-pitch
   (are [n hz]
