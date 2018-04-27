@@ -1,4 +1,4 @@
-(ns mut.test-utils)
+(ns mut.utils.test)
 
 (def ^:private DEFAULT-APPROX-DELTA 0.001)
 

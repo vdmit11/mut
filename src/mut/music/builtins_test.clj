@@ -1,6 +1,6 @@
 (ns mut.music.builtins-test
   (:require [clojure.test :refer [are deftest]]
-            [mut.test-utils :refer [approx=]]
+            [mut.utils.test :refer [approx=]]
             mut.music.builtins
             [mut.music.pitch :as pitch]))
 
