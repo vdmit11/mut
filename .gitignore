@@ -1,4 +1,6 @@
-*jar
+*.jar
+*.iml
+.idea
 .lein-deps-sum
 .lein-env
 .lein-failures
