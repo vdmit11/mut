@@ -25,6 +25,7 @@
                  [org.clojure/test.check "0.9.0"]]
   :plugins [[lein-ancient "0.6.15"]
             [cider/cider-nrepl "0.17.0-SNAPSHOT"]
+            [refactor-nrepl "2.4.0-SNAPSHOT"]
             [jonase/eastwood "0.2.5"]
             [lein-kibit "0.1.6"]
             [lein-bikeshed "0.5.0"]
