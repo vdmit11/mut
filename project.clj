@@ -16,6 +16,10 @@
   :src-paths ["src/"]
   :test-paths ["src/"]
   :main mut.core
+  :resource-paths ["dev-resources/clojure/src/jvm"
+                   "dev-resources/clojure/src/clj"
+                   "dev-resources/clojure/target/clojure-1.9.0.jar"
+                   "dev-resources/clojure/target/clojure-1.9.0-sources.jar"]
   :dependencies [[org.clojure/clojure "1.9.0"]
                  [org.clojure/data.generators "0.1.2"]
                  [kunstmusik/pink "0.4.1"]

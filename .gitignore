@@ -7,8 +7,10 @@
 .lein-repl-history
 .nrepl-port
 /checkouts/
+/dev-resources/clojure
 /classes/
 /lib/
 /target/
 /targets/
 pom.xml
+TAGS
