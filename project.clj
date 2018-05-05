@@ -29,5 +29,6 @@
             [jonase/eastwood "0.2.5"]
             [lein-kibit "0.1.6"]
             [lein-bikeshed "0.5.0"]
-            [lein-environ "1.0.2"]]
+            [lein-environ "1.0.2"]
+            [lein-marginalia "0.9.1"]]
   :env {:squiggly {:checkers [:eastwood :kibit]}})
