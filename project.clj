@@ -1,12 +1,20 @@
 (defproject mut "SNAPSHOT"
   :jvm-opts
   ^:replace
-  ["-server"
+  [
+   ;; tweaks to minimize GC times, for Pink audio engine
+   "-server"
    "-Xms512m" "-Xmx1g"
    "-XX:+UseG1GC"
    "-XX:MaxGCPauseMillis=1"
+   "-XX:+UseTLAB"
+   ;; start time improvements
+   "-XX:+AggressiveOpts"
+   "-XX:+TieredCompilation"
    "-XX:TieredStopAtLevel=1"
-   "-XX:+UseTLAB"]
+   "-XX:+CMSClassUnloadingEnabled"
+   "-Xverify:none"
+   ]
 
   :description "Music Tool"
   :url "https://github.com/vdmit11/mut"
