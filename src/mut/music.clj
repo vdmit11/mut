@@ -85,7 +85,7 @@
 (s/def ::container
   (s/keys :req-un [::contents]))
 
-;; The `:contents` is a set, where each object has `:start-time`/`:end-time` keys.
+;; The `:contents` is a set, where each object has `:offset`/`:duration` keys.
 ;;
 ;; The choice may seem odd. Why `set`? And why the time is stored inside nested objects,
 ;; and not is a citizen of the parent collection (that determines position of object)?
@@ -108,6 +108,36 @@
 (s/def ::contents
   (s/and set? (s/coll-of ::contained-object)))
 
+;; Each contained object must have two time fields:
+;;
+;; 1. `:offset` - start time, relative to beginning of the container
+;; 2. `:duration` - how much beats the object lasts in time
+;;
+;; Also, here we have some special assumptions about them:
+;;  - Both things are time that is measured in beats (not in "measures" or seconds).
+;;  - They can be `rational?`, like "1/3 of a beat" - is a totally valid value.
+;;  - Each object must have non-zero `:duration` (although `:offset` can be zero).
+;;
+;; The last thing (non-zero `:duration`) may seem strange, because what would you do
+;; for percussion sounds (like clicks and drum hits) that seem to not have a duration?
+;; The answer is: set the `:duration` to the percepted time, like "1 beat", or "1/Nth of a beat".
+;; That is, `:duration` is not a real sounding time, but rather a percepted number of beats.
+;;
+;; This requirement for `:duration` is made in order to solve problem with intersections of events.
+;; If we allow duration-less events, then it becomes hard to answer quetions like:
+;;   "given time T, find all events that are "happening" (may start earlier but still active at T)"
+;; So in order to protect from such problems, we require all contained objects to have `:duration`.
 (s/def ::contained-object
-  (s/keys
-    :req-un [::start-time ::end-time]))
+  (s/merge
+    ::object
+    (s/keys :req-un [::offset ::duration])))
+
+(s/def ::offset
+  (s/and
+    rational?
+    #(not (neg? %))))
+
+(s/def ::duration
+  (s/and
+    rational?  ; it is totally OK to use rational numbers like `1/3` as duration (thanks to Clojure)
+    pos?))     ; unlike `:offset`, the `:duration` can't be zero (time-less events are not allowed)
