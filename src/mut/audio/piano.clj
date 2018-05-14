@@ -3,6 +3,7 @@
             [mut.audio :refer [at MusicObject->AudioEngineEvents]]
             [mut.music.pitch :as pitch]))
 
+(comment "WIP"
 (defrecord Piano [])
 
 (defn note->event
@@ -20,7 +21,7 @@
 (extend Piano MusicObject->AudioEngineEvents {:mo->events mo->events})
 
 (def piano (->Piano))
-
+)
 
 ;; demo
 (comment
