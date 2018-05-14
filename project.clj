@@ -32,7 +32,7 @@
                  [com.rpl/specter "1.1.1"]
                  [org.clojure/test.check "0.9.0"]]
   :plugins [[lein-ancient "0.6.15"]
-            [cider/cider-nrepl "0.17.0-SNAPSHOT"]
+            [cider/cider-nrepl "0.18.0-SNAPSHOT"]
             [refactor-nrepl "2.4.0-SNAPSHOT"]
             [jonase/eastwood "0.2.5"]
             [lein-kibit "0.1.6"]
