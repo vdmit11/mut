@@ -4,21 +4,21 @@
             [mut.utils.test :refer [is-not]]
             [mut.music]))
 
-(deftest nested-mo-must-have-start-end-time
+(deftest nested-mo-must-have-offset-and-duration
   (is
     (s/valid? :mut.music/container
-      {:contents #{{:start-time 0 :end-time 1}
-                   {:start-time 1 :end-time 2}}})
-    "should be valid because both :start-time/:end-time are present in nested object")
+      {:contents #{{:offset 0 :duration 1}
+                   {:offset 1 :duration 2}}})
+    "should be valid because both :offset/:duration are present in nested object")
 
   (is-not
     (s/valid? :mut.music/container
-      {:contents #{{:start-time 0 :end-time 1}
-                   {:end-time 2}}})
-    "must be invalid because :start-time is missing")
+      {:contents #{{:offset 0 :duration 1}
+                   {:duration 2}}})
+    "must be invalid because :offset is missing")
 
   (is-not
     (s/valid? :mut.music/container
-      {:contents #{{:start-time 0 :end-time 1}
-                   {:start-time 1}}})
-    "must be invalid because :end-time is missing"))
+      {:contents #{{:offset 0 :duration 1}
+                   {:offset 1}}})
+    "must be invalid because :duration is missing"))
