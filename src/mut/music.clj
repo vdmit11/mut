@@ -62,7 +62,58 @@
 ;;    So fuck you, object is a map. Primitive types like `String` won't work as music objects.
 ;;    Deal with it.
 (s/def ::object
-  (s/keys :opt-un [::pitch ::duration ::volume]))
+  (s/keys
+    :opt-un
+    [::pitch
+     ::duration
+     ::volume
+     ::keynum]))
+
+;; `:volume` describes loudness, as percepted by human ear.
+;;
+;; The value is is a number in range 0 to 1, which is basically a percentage, like:
+;;
+;;  - 0.0 means 0%
+;;  - 0.5 means 50%
+;;  - 1.0 means 100%
+;;
+;; Also note that:
+;;
+;;  - The value is linear (not logarithmic), so 1.0 is the maximum, and 0.5 half-way maximum.
+;;  - Values over 1.0 are invalid, so use 0.5 as the default "middle" point that allows
+;;    to increment/decrement equally to both ends.
+(s/def ::volume
+  (s/and
+    number?
+    #(<= 0 % 1)))
+
+;; `:pitch` describes audio frequency, as percepted by human ear.
+;;
+;; XXX: My current plan is to force `:pitch` to be `String`, using SPN (Scientific Pitch Notation).
+;;      But, I also want to experiment with exotic tunings and microtonal music,
+;;      so probably that will morph into a protocol in future. This is still TODO.
+(def pitch-pattern #"^([A-G][#b]?)(\d?)$")
+(s/def ::pitch
+  (s/and
+    string?
+    #(re-matches pitch-pattern %)))
+
+
+;; `:keynum` is a MIDI key number (or piano key number).
+;;
+;; Usually MIDI key number is a low-level thing that should be derived from `:pitch`,
+;; but maybe sometimes this couldn't be done (like for drums and other pitch-less things),
+;; or you would specify exactly the MIDI or piano key number, so `:keynum` is for that purpose.
+(s/def ::keynum
+  (s/or
+    :keynum-integer
+    (s/int-in 0 127)
+    :keynum-with-fractional-part
+    (s/double-in
+      :min 0
+      :max 127
+      :infinite? false
+      :NaN false)))
 
 ;; Containers
 ;; ==========
