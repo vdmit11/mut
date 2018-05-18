@@ -1,6 +1,19 @@
-(ns mut.audio.utils.pink
-  "Various utils for the `pink` audio engine."
-  (:require pink.event))
+(ns mut.audio.pink-utils
+  "Utils for Pink audio engine, that didn't fell into any other module."
+  (:require pink.event
+            pink.engine
+            pink.node
+            [mut.utils.proto :as proto]))
+
+(defn engine? [obj]
+  (instance? pink.engine.Engine obj))
+
+(defn mixer-node? [obj]
+  (proto/satisfies-every?
+    [pink.node/Node
+     pink.node/GainNode
+     pink.node/StereoMixerNode]
+    obj))
 
 (defn switch-engine-to-absolute-time!
   "Switch pink.engine.Engine events to absolute time.
@@ -15,7 +28,6 @@
   So this function is a tool to switch pink's Engine to the more handy absolute time."
   [engine]
   (pink.event/use-absolute-time! (.event-list engine)))
-
 
 (comment
   "FIXME: this macro can only be used with `pink.simple` (one global engine),
