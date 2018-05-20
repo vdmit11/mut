@@ -1,6 +1,6 @@
 (ns mut.audio.instr-test
   (:require [clojure.spec.alpha :as s]
-            [clojure.test :refer [deftest]]
+            [clojure.test :refer [deftest is]]
             pink.engine
             pink.node
             mut.audio.instr
