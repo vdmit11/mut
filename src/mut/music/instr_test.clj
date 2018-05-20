@@ -1,10 +1,10 @@
-(ns mut.audio.pool-test
+(ns mut.music.instr-test
   (:require [clojure.test :refer [deftest are]]
-            [mut.audio.pool :as pool]))
+            [mut.music.instr :as music.instr]))
 
 (deftest instrument-type-is-part-of-id-keyword
   (are [kw type]
-      (= type (pool/id->type kw))
+      (= type (music.instr/id->type kw))
     :guitar-0 :guitar
     :guitar-1 :guitar
     :guitar :guitar
