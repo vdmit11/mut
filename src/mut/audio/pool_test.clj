@@ -4,7 +4,7 @@
 
 (deftest instrument-type-is-part-of-id-keyword
   (are [kw type]
-      (= type (pool/get-instrument-type kw))
+      (= type (pool/id->type kw))
     :guitar-0 :guitar
     :guitar-1 :guitar
     :guitar :guitar

@@ -17,10 +17,10 @@
   that doesn't refer to any stateful objects (like threads or I/O ports).
   I imagine it looking like this:
 
-    (def score #{{:instrument :guitar-1 :contents [...]}
-                 {:instrument :guitar-2 :contents [...]}
-                 {:instrument :bass :contents [...]}
-                 {:instrument :drums :contents [...]}})
+    (def score #{{:instr :guitar-1 :contents [...]}
+                 {:instr :guitar-2 :contents [...]}
+                 {:instr :bass :contents [...]}
+                 {:instr :drums :contents [...]}})
 
   Here I'm referring instruments by name, like `:guitar-1` and `:guitar-2`,
   and I expect them to be allocated/deallocated automatically as the code enters/exits
@@ -36,13 +36,13 @@
         kw-without-suffix (keyword str-without-suffix)]
     (or kw-without-suffix kw)))
 
-(defn get-instrument-type
+(defn id->type
   "Extract type from instrument ID keyword.
 
   Examples:
-     (get-instrument-type :electric-guitar) => :electric-guitar
-     (get-instrument-type :electric-guitar-1) => :electric-guitar
-     (get-instrument-type :electric-guitar-2) => :electric-guitar
+     (id->type :electric-guitar) => :electric-guitar
+     (id->type :electric-guitar-1) => :electric-guitar
+     (id->type :electric-guitar-2) => :electric-guitar
 
   Basically that removes the number from the end of the keyword.
 
