@@ -28,4 +28,58 @@
 
   So this is what this module is about - resolving IDs into instrument objects,
   and accounting resources in global pools (with automatic freeing).
-  ")
+  "
+  (:require pink.engine
+            pink.node
+            [clojure.spec.alpha :as s]
+            [mut.music.instr :as music.instr]))
+
+(defonce ^:dynamic *current-pool* (ref nil))
+
+(defrecord AudioPool [engine instrs])
+
+(defn new-pool []
+  (map->AudioPool
+    {:engine (pink.engine/engine-create :nchnls 2)
+     :instrs {}}))
+
+(defn get-instr- [pool id]
+  (get (:instrs pool) id))
+
+(defn get-instr [id]
+  (get-instr- @*current-pool* id))
+
+(defn- assoc-instr- [pool id instr]
+  (assoc-in pool [:instrs id] instr))
+
+;; Instrument allocation
+
+(defmulti map->instr :type)
+
+(defn- new-instr [id engine]
+  (map->instr {:id id
+               :type (music.instr/id->type id)
+               :engine engine
+               :node (pink.node/mixer-node)}))
+
+(defn alloc-instr [id]
+  (dosync
+    (let [pool (ensure *current-pool*)]
+      (or
+        (get-instr- pool id)
+        (let [instr (new-instr id (:engine pool))]
+          (alter *current-pool* #(assoc-instr- % id instr))
+          (pink.engine/engine-add-afunc (:engine pool) (:node instr))
+          instr)))))
+
+
+;; auto-initialize *current-pool* (create `pink.engine.Engine` object, but not yet start the Thread)
+(dosync
+  (when-not @*current-pool*
+    (ref-set *current-pool* (new-pool))))
+
+;; Utils for testing
+
+(defmacro with-new-pool [& body]
+  `(binding [*current-pool* (ref (new-pool))]
+     ~@body))
