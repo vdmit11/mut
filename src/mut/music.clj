@@ -192,3 +192,8 @@
   (s/and
     rational?  ; it is totally OK to use rational numbers like `1/3` as duration (thanks to Clojure)
     pos?))     ; unlike `:offset`, the `:duration` can't be zero (time-less events are not allowed)
+
+;; Tempo and Pitch ranges, in which a human is able to percept sounds.
+;; Having any music outside these ranges is extremely unlikely.
+(def sensible-bpm-range [30 200])
+(def sensible-hz-range [20 20000])
