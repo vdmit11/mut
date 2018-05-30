@@ -136,7 +136,7 @@
 (s/def ::container
   (s/keys :req-un [::contents]))
 
-;; The `:contents` is a set, where each object has `:offset`/`:duration` keys.
+;; The `:contents` is a set, where each object has `:onset`/`:duration` keys.
 ;;
 ;; The choice may seem odd. Why `set`? And why the time is stored inside nested objects,
 ;; and not is a citizen of the parent collection (that determines position of object)?
@@ -161,13 +161,13 @@
 
 ;; Each contained object must have two time fields:
 ;;
-;; 1. `:offset` - start time, relative to beginning of the container
+;; 1. `:onset` - start time, relative to beginning of the container
 ;; 2. `:duration` - how much beats the object lasts in time
 ;;
 ;; Also, here we have some special assumptions about them:
 ;;  - Both things are time that is measured in beats (not in "measures" or seconds).
 ;;  - They can be `rational?`, like "1/3 of a beat" - is a totally valid value.
-;;  - Each object must have non-zero `:duration` (although `:offset` can be zero).
+;;  - Each object must have non-zero `:duration` (although `:onset` can be zero).
 ;;
 ;; The last thing (non-zero `:duration`) may seem strange, because what would you do
 ;; for percussion sounds (like clicks and drum hits) that seem to not have a duration?
@@ -181,9 +181,9 @@
 (s/def ::contained-object
   (s/merge
     ::object
-    (s/keys :req-un [::offset ::duration])))
+    (s/keys :req-un [::onset ::duration])))
 
-(s/def ::offset
+(s/def ::onset
   (s/and
     rational?
     #(not (neg? %))))
@@ -191,7 +191,7 @@
 (s/def ::duration
   (s/and
     rational?  ; it is totally OK to use rational numbers like `1/3` as duration (thanks to Clojure)
-    pos?))     ; unlike `:offset`, the `:duration` can't be zero (time-less events are not allowed)
+    pos?))     ; unlike `:onset`, the `:duration` can't be zero (time-less events are not allowed)
 
 ;; Tempo and Pitch ranges, in which a human is able to percept sounds.
 ;; Having any music outside these ranges is extremely unlikely.
