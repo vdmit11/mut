@@ -67,25 +67,54 @@
     [::pitch
      ::duration
      ::volume
+     ::stress
      ::keynum]))
 
-;; `:volume` describes loudness, as percepted by human ear.
+;; Some properties of music objects are abstract, like: volume, tone, stress, accent, etc.
+;; In this case abstract means that you wouldn't measure them in any specific units.
 ;;
-;; The value is is a number in range 0 to 1, which is basically a percentage, like:
+;; For such things, we define `:level`, which is a number in range -1 to +2, where:
 ;;
-;;  - 0.0 means 0%
-;;  - 0.5 means 50%
-;;  - 1.0 means 100%
+;;  - `-1.0` is the minimum (dull, soft, quiet, short, etc)
+;;  -  `0.0` is a normal value (natural, default, average)
+;;  - `+1.0` is the maximum (bright, hard, loud, long, etc)
 ;;
-;; Also note that:
-;;
-;;  - The value is linear (not logarithmic), so 1.0 is the maximum, and 0.5 half-way maximum.
-;;  - Values over 1.0 are invalid, so use 0.5 as the default "middle" point that allows
-;;    to increment/decrement equally to both ends.
-(s/def ::volume
+;; You can imagine it as a rotating min-max control knob, with natural 12-o-clock position at zero.
+(s/def ::level
   (s/and
     number?
-    #(<= 0 % 1)))
+    #(<= -1 % 1)))
+
+;; `:volume` describes loudness, saturation, presence of instrument in the mix.
+;;
+;; This is not just "gain", but rather an absract term of how significant an instrument sounds
+;; among other instruments (and that may be achieved not only with loudness, but also with timbre,
+;; and sound effects like echo and distortion).
+;;
+;; The value is a number in range from -1 to +1, where:
+;;  - `-1.0` - background, ambient, distant, quiet sound
+;;  -  `0.0` - a regular level, not standing out among other sounds
+;;  - `+1.0` - front-line, precise, sharp, close and loud sound
+;;
+;; Any other intermediate values, like `0.5` or `2/3` are possible.
+;; And any values outside the range should be clamped to the min/max values (`-1` and `+2`).
+(s/def ::volume ::level)
+
+;; `:stress` describes rhythmic or dynamic accent - strong/weak, hard/soft attack,
+;; loud/quiet volume, and other things that emphasize or lose a note among surrounding notes.
+;;
+;; The value is a number in range from -1 to +1, where:
+;;
+;;  - `-1.0` - a very soft/gentle note, sounding on background
+;;  - `-0.5` - de-emphasized note, softer than surrounding notes, weak beat
+;;  -  `0.0` - a regular note, not emphasized nor de-emphasized
+;;  - `+0.5` - emphasized note, accent, strong beat
+;;  - `+1.0` - a very hard and loud, outstanding note
+;;
+;; Note that some audio instruments (like metronome, or drums, or samplers in general) may not have
+;; ability to produce continous range of stress levels. For such cases, any code is free to clamp
+;; and round this value to small set of discrete levels, like: strong/normal/weak.
+(s/def ::stress ::level)
 
 ;; `:pitch` describes audio frequency, as percepted by human ear.
 ;;
