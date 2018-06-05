@@ -1,6 +1,6 @@
 (ns mut.music.pitch-test
   (:require [clojure.test :refer [are deftest]]
-            [mut.utils.test :refer [approx=]]
+            [mut.utils.math :refer [approx=]]
             [mut.music.pitch :as pitch]))
 
 (deftest midi-keynum-to-hz-conversion
