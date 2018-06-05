@@ -23,6 +23,8 @@
     - various utility functions, re-used over instrument implementations
   "
   (:require [clojure.spec.alpha :as s]
+            pink.engine
+            pink.node
             [mut.audio.pink-utils :as pink-utils]))
 
 ;; An Instrument is a record that, has several required fields:
@@ -41,3 +43,20 @@
 (s/def ::engine pink-utils/engine?)
 
 (s/def ::node pink-utils/mixer-node?)
+
+(defn fire-afngen-event
+  [node afngen & args]
+  (let [afn (apply afngen args)]
+    (pink.node/node-add-func node afn)))
+
+(defn add-afngen-event
+  [instr time afngen afngen-args]
+  (let [engine (:engine instr)
+        node (:node instr)
+        event-args (concat [node afngen] afngen-args)
+        event (pink.event.Event. fire-afngen-event time event-args)]
+    (pink.engine/engine-add-events engine [event])))
+
+(defmacro schedule!
+  [instr time [afngen & afngen-args]]
+  `(add-afngen-event ~instr ~time ~afngen (list ~@afngen-args)))

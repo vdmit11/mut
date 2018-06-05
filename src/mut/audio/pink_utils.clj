@@ -3,13 +3,14 @@
   (:require pink.event
             pink.engine
             pink.node
-            [mut.utils.proto :as proto]))
+            [mut.utils.proto :as utils.proto]
+            [mut.utils.math :as utils.math]))
 
 (defn engine? [obj]
   (instance? pink.engine.Engine obj))
 
 (defn mixer-node? [obj]
-  (proto/satisfies-every?
+  (utils.proto/satisfies-every?
     [pink.node/Node
      pink.node/GainNode
      pink.node/StereoMixerNode]
@@ -29,26 +30,22 @@
   [engine]
   (pink.event/use-absolute-time! (.event-list engine)))
 
-(comment
-  "FIXME: this macro can only be used with `pink.simple` (one global engine),
-   while I want multiple engines in parallel. Need to somehow rework it."
-  (defmacro at
-    "Produce a pink Event that fires an instrument function.
+(defn end-when-silent
+  "Execute audio function, examine the output buffer, and return `nil` if it contains silence.
 
-     Example:
-       (at 16 (piano :keynum 60 :duration 2))
+  This is a fixed version (almost copy-paste) of `pink.instruments.drums/end-when-silent`.
+  The difference is in comparison: originally it is `zero?`, replaced with `approx-zero?` here.
 
-     - `piano` is the instrument function (that returns an audio function)
-     - `:keynum/:duration` are arguments for the instrument function
-     - `16` is the event start time (measured in beats since engine start)
+  The problem with just `zero?` is that some audio effects may produce noise
+  (caused by limited precision of floating point arithmetics that we use for computation).
+  This is the case for `pink.filters/zdf-2pole` and I suspect that generally all IIR filters
+  (Infinite Impulse Response) may have this issue by design.
 
-     So the macro produces the `pink.event/Event` object that you can add to the engine.
-     This Event, when fired, will evaluate the specified instrument function,
-     and add the resulting audio function to the current engine."
-    [time [instrfn & args]]
-    `(pink.event/event fire-instrfn ~time ~instrfn ~@args))
-
-  (defn fire-instrfn
-    [instrfn & args]
-    (let [afunc (apply instrfn args)]
-      (add-afunc afunc))))
+  So here we use `approx-zero?` that basically acts as a noise gate.
+  When output signal reaches a (hardcoded) threshold, we terminate the audio function."
+  [afn]
+  (fn []
+    (when-let [^doubles sig (afn)]
+      (when-not (and (utils.math/approx-zero? (aget sig 0))
+                     (utils.math/approx-zero? (aget sig (dec (alength sig)))))
+        sig))))
