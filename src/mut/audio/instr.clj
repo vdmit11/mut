@@ -49,12 +49,16 @@
   (let [afn (apply afngen args)]
     (pink.node/node-add-func node afn)))
 
+(defn new-afngen-event
+  [instr time afngen afngen-args]
+  (let [node (:node instr)
+        event-args (concat [node afngen] afngen-args)]
+    (pink.event.Event. fire-afngen-event time event-args)))
+
 (defn add-afngen-event
   [instr time afngen afngen-args]
   (let [engine (:engine instr)
-        node (:node instr)
-        event-args (concat [node afngen] afngen-args)
-        event (pink.event.Event. fire-afngen-event time event-args)]
+        event (new-afngen-event instr time afngen afngen-args)]
     (pink.engine/engine-add-events engine [event])))
 
 (defmacro schedule!
