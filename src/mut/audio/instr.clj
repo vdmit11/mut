@@ -46,7 +46,7 @@
 
 (defn fire-afngen-event
   [node afngen & args]
-  (let [afn (apply afngen args)]
+  (when-let [afn (apply afngen args)]
     (pink.node/node-add-func node afn)))
 
 (defn new-afngen-event

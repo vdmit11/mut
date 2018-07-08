@@ -53,4 +53,62 @@
 
   So this code relies on Pink, but with a hope that I can support different audio engines later.
   "
-  (:require [mut.audio.instr :as instr]))
+  (:require [mut.audio.instr :as instr]
+            [mut.audio.pool :as pool]
+            [mut.utils.math :as utils.math]))
+
+(require 'pink.engine)
+(require 'pink.node)
+(require '[mut.utils.map :as utils.map])
+(require '[mut.utils.math :as utils.math])
+(require '[pink.instruments.drums :as drums])
+(require '[pink.oscillators :as oscillators])
+(require '[pink.filters :as filters])
+(require '[pink.util :refer [mul sum]])
+(require '[mut.audio.pink-utils :refer [end-when-silent]])
+
+(def ^:const zdf-mode-lowpass 0)
+(def ^:const zdf-mode-bandpass 2)
+
+(defn synth-click [hz]
+  (end-when-silent
+      (sum
+        (->
+          (oscillators/pulse 0 50)
+          (filters/zdf-2pole hz 40.0 zdf-mode-bandpass)
+          (filters/zdf-2pole 2000 0.6 zdf-mode-lowpass))
+        (->
+          (drums/g-noise 40)
+          (mul (drums/exp-decay 0.001 1000))
+          (filters/zdf-2pole hz 4 zdf-mode-bandpass)))))
+
+(def click-hzs
+  {-1.0 1100
+   0.0 1600
+   1.0 2000})
+
+(defn get-click-hz [beat]
+  (utils.map/get-closest click-hzs (or (:stress beat) 0)))
+
+(defrecord Click [id type engine node])
+
+(defmethod pool/map->instr :click
+  [map]
+  (map->Click map))
+
+(def click (pool/alloc-instr :click))
+
+(comment
+  (pink.engine/engine-start (:engine click))
+  (pink.engine/engine-clear-events (:engine click))
+  (pink.node/node-clear (:node click))
+
+
+
+  (for [n (range 8)]
+    (do
+      (instr/schedule! click (+ n 1/4) (synth-click (get-click-hz {:stress 1})))
+      (instr/schedule! click (+ n 2/4) (synth-click (get-click-hz {:stress 0})))
+      (instr/schedule! click (+ n 3/4) (synth-click (get-click-hz {:stress 0})))
+      (instr/schedule! click (+ n 4/4) (synth-click (get-click-hz {:stress 0})))))
+)
