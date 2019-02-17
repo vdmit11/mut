@@ -54,7 +54,7 @@
   So this code relies on Pink, but with a hope that I can support different audio engines later.
   "
   (:require [mut.audio.instr :as instr]
-            [mut.audio.pool :as pool]
+            [mut.audio.orchestra :as orchestra]
             [mut.utils.math :as utils.math]))
 
 (require 'pink.engine)
@@ -92,11 +92,11 @@
 
 (defrecord Click [id type engine node])
 
-(defmethod pool/map->instr :click
+(defmethod orchestra/map->instr :click
   [map]
   (map->Click map))
 
-(def click (pool/alloc-instr :click))
+(def click (orchestra/alloc-instr :click))
 
 (comment
   (pink.engine/engine-start (:engine click))

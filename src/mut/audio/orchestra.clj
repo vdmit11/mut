@@ -1,5 +1,5 @@
-(ns mut.audio.pool
-  "Pool of instruments and engines.
+(ns mut.audio.orchestra
+  "Orchestra of instruments.
 
   Problem: in order to play audio, you need to allocate resources, like:
    - audio engine (`pink.engine.Engine`) running in a separate Thread
@@ -26,31 +26,31 @@
   and I expect them to be allocated/deallocated automatically as the code enters/exits
   corresponding sections of the music score during audio synthesis process.
 
-  So this is what this module is about - resolving IDs into instrument objects,
-  and accounting resources in global pools (with automatic freeing).
+  So this is what this module is about - keeping global list of allocated instruments
+  to have an ability to refer them by ID (instead of direct reference to object).
   "
   (:require pink.engine
             pink.node
             [clojure.spec.alpha :as s]
             [mut.music.instr :as music.instr]))
 
-(defonce ^:dynamic *current-pool* (ref nil))
+(defonce ^:dynamic *current-orchestra* (ref nil))
 
-(defrecord AudioPool [engine instrs])
+(defrecord Orchestra [engine instrs])
 
-(defn new-pool []
-  (map->AudioPool
+(defn new-orchestra []
+  (map->Orchestra
     {:engine (pink.engine/engine-create :nchnls 2)
      :instrs {}}))
 
-(defn get-instr- [pool id]
-  (get (:instrs pool) id))
+(defn get-instr- [orchestra id]
+  (get (:instrs orchestra) id))
 
 (defn get-instr [id]
-  (get-instr- @*current-pool* id))
+  (get-instr- @*current-orchestra* id))
 
-(defn- assoc-instr- [pool id instr]
-  (assoc-in pool [:instrs id] instr))
+(defn- assoc-instr- [orchestra id instr]
+  (assoc-in orchestra [:instrs id] instr))
 
 ;; Instrument allocation
 
@@ -64,22 +64,22 @@
 
 (defn alloc-instr [id]
   (dosync
-    (let [pool (ensure *current-pool*)]
+    (let [orchestra (ensure *current-orchestra*)]
       (or
-        (get-instr- pool id)
-        (let [instr (new-instr id (:engine pool))]
-          (alter *current-pool* #(assoc-instr- % id instr))
-          (pink.engine/engine-add-afunc (:engine pool) (:node instr))
+        (get-instr- orchestra id)
+        (let [instr (new-instr id (:engine orchestra))]
+          (alter *current-orchestra* #(assoc-instr- % id instr))
+          (pink.engine/engine-add-afunc (:engine orchestra) (:node instr))
           instr)))))
 
 
-;; auto-initialize *current-pool* (create `pink.engine.Engine` object, but not yet start the Thread)
+;; auto-initialize *current-orchestra* (create `pink.engine.Engine` object, but not yet start the Thread)
 (dosync
-  (when-not @*current-pool*
-    (ref-set *current-pool* (new-pool))))
+  (when-not @*current-orchestra*
+    (ref-set *current-orchestra* (new-orchestra))))
 
 ;; Utils for testing
 
-(defmacro with-new-pool [& body]
-  `(binding [*current-pool* (ref (new-pool))]
+(defmacro with-new-orchestra [& body]
+  `(binding [*current-orchestra* (ref (new-orchestra))]
      ~@body))
