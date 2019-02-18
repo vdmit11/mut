@@ -66,6 +66,7 @@
 (require '[pink.filters :as filters])
 (require '[pink.util :refer [mul sum]])
 (require '[mut.audio.pink-utils :refer [end-when-silent]])
+(require '[mut.audio.engine :as engine])
 
 (def ^:const zdf-mode-lowpass 0)
 (def ^:const zdf-mode-bandpass 2)
@@ -90,25 +91,23 @@
 (defn get-click-hz [beat]
   (utils.map/get-closest click-hzs (or (:stress beat) 0)))
 
-(defrecord Click [id type engine node])
+(defrecord Click [id type engine node]
+  engine/Instrument
+  (mo->afn [_ mo] (synth-click (get-click-hz mo))))
 
-(defmethod orchestra/map->instr :click
-  [map]
-  (map->Click map))
+(do
+  (def instr-factories
+    {:click map->Click})
 
-(def click (orchestra/alloc-instr :click))
+  (def orchestra (engine/new-orchestra instr-factories))
+  (def click-instr (engine/alloc-instr! orchestra :click-1))
 
-(comment
-  (pink.engine/engine-start (:engine click))
-  (pink.engine/engine-clear-events (:engine click))
-  (pink.node/node-clear (:node click))
-
-
-
-  (for [n (range 8)]
+  (pink.engine/engine-start (:engine orchestra))
+  (for [n (range 4)]
     (do
-      (instr/schedule! click (+ n 1/4) (synth-click (get-click-hz {:stress 1})))
-      (instr/schedule! click (+ n 2/4) (synth-click (get-click-hz {:stress 0})))
-      (instr/schedule! click (+ n 3/4) (synth-click (get-click-hz {:stress 0})))
-      (instr/schedule! click (+ n 4/4) (synth-click (get-click-hz {:stress 0})))))
-)
+      (engine/schedule-play-instrument! click-instr (+ n 1/4) {:stress 1})
+      (engine/schedule-play-instrument! click-instr (+ n 2/4) {:stress 0})
+      (engine/schedule-play-instrument! click-instr (+ n 3/4) {:stress 0})
+      (engine/schedule-play-instrument! click-instr (+ n 4/4) {:stress 0})
+      ))
+  )
