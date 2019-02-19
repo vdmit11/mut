@@ -3,14 +3,14 @@
   (:require pink.event
             pink.engine
             pink.node
-            [mut.utils.proto :as utils.proto]
+            [mut.utils.type :as utils.type]
             [mut.utils.math :as utils.math]))
 
 (defn engine? [obj]
   (instance? pink.engine.Engine obj))
 
 (defn mixer-node? [obj]
-  (utils.proto/satisfies-every?
+  (utils.type/satisfies-every?
     [pink.node/Node
      pink.node/GainNode
      pink.node/StereoMixerNode]
