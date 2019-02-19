@@ -53,9 +53,7 @@
 
   So this code relies on Pink, but with a hope that I can support different audio engines later.
   "
-  (:require [mut.audio.instr :as instr]
-            [mut.audio.orchestra :as orchestra]
-            [mut.utils.math :as utils.math]))
+  (:require [mut.utils.math :as utils.math]))
 
 (require 'pink.engine)
 (require 'pink.node)
