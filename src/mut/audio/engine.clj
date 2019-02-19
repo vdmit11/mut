@@ -103,7 +103,7 @@
 ;; and I expect them to be allocated/deallocated automatically as the code enters/exits
 ;; corresponding sections of the music score during audio synthesis process.
 ;;
-;; So this is what this module is about - keeping global list of allocated instruments
+;; So this is what this Orchestra below is about - keeping global list of allocated instruments
 ;; to have an ability to refer them by ID (instead of direct reference to object).
 (defrecord Orchestra [engine instrs-ref instr-factories])
 
