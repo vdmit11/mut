@@ -148,17 +148,3 @@
           (pink.engine/engine-add-afunc (:engine instr) (:node instr))
           instr)))))
 
-
-(comment
-(defonce ^:dynamic *current-orchestra* (ref nil))
-
-;; auto-initialize *current-orchestra* (create `pink.engine.Engine` object, but not yet start the Thread)
-(dosync
-  (when-not @*current-orchestra*
-    (ref-set *current-orchestra* (new-orchestra))))
-
-;; Utils for testing
-
-(defmacro with-new-orchestra [& body]
-  `(binding [*current-orchestra* (ref (new-orchestra))]
-     ~@body)))
