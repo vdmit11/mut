@@ -11,5 +11,5 @@
 (defn atom-containing-long?
   [obj]
   (and
-    (instance? clojure.lang.Atom)
+    (instance? clojure.lang.Atom obj)
     (instance? java.lang.Long (deref obj))))
