@@ -53,63 +53,129 @@
 
   So this code relies on Pink, but with a hope that I can support different audio engines later.
   "
-  (:require [mut.utils.math :as utils.math]
-            [mut.audio.engine :as engine]))
+  (:require [mut.music.instr :as music.instr]
+            pink.engine
+            pink.node))
 
-(require 'pink.engine)
-(require 'pink.node)
-(require '[mut.utils.map :as utils.map])
-(require '[mut.utils.math :as utils.math])
-(require '[pink.instruments.drums :as drums])
-(require '[pink.oscillators :as oscillators])
-(require '[pink.filters :as filters])
-(require '[pink.util :refer [mul sum]])
-(require '[mut.audio.pink-utils :refer [end-when-silent]])
-(require '[mut.audio.engine :as engine])
+;; Orchestra of instruments.
+;;
+;; Problem: in order to play audio, you need to allocate resources, like:
+;;  - audio engine (`pink.engine.Engine`) running in a separate Thread
+;;  - audio node (`pink.node.Node`) for each instrument
+;;  - mutable instrument state (low-level audio buffers)
+;;
+;; And in addition, you have to free all those resources manually
+;; (because GC doesn't know how to stop Threads and close audio outputs).
+;;
+;; So I (as a music generator, let't say) don't want to do that manually.
+;; I would like these things to happen automatically under the hood,
+;; while music is being synthesized/played.
+;;
+;; I would like to be able to just write some music score that looks as pure data,
+;; that doesn't refer to any stateful objects (like threads or I/O ports).
+;; I imagine it looking like this:
+;;
+;;   (def score #{{:instr :guitar-1 :contents [...]}
+;;                {:instr :guitar-2 :contents [...]}
+;;                {:instr :bass :contents [...]}
+;;                {:instr :drums :contents [...]}})
+;;
+;; Here I'm referring instruments by name, like `:guitar-1` and `:guitar-2`,
+;; and I expect them to be allocated/deallocated automatically as the code enters/exits
+;; corresponding sections of the music score during audio synthesis process.
+;;
+;; So this is what this Orchestra below is about - keeping global list of allocated instruments
+;; to have an ability to refer them by ID (instead of direct reference to object).
+(defrecord Orchestra [engine instrs-ref instr-factories])
 
-(def ^:const zdf-mode-lowpass 0)
-(def ^:const zdf-mode-bandpass 2)
+(defn new-orchestra [instr-factories]
+  (map->Orchestra
+    {:engine (pink.engine/engine-create :nchnls 2)
+     :instrs-ref (ref {})
+     :instr-factories instr-factories}))
 
-(defn synth-click [hz]
-  (end-when-silent
-      (sum
-        (->
-          (oscillators/pulse 0 50)
-          (filters/zdf-2pole hz 40.0 zdf-mode-bandpass)
-          (filters/zdf-2pole 2000 0.6 zdf-mode-lowpass))
-        (->
-          (drums/g-noise 40)
-          (mul (drums/exp-decay 0.001 1000))
-          (filters/zdf-2pole hz 4 zdf-mode-bandpass)))))
+(defn start! [orchestra]
+  (-> orchestra
+      :engine
+      pink.engine/engine-start))
 
-(def click-hzs
-  {-1.0 1100
-   0.0 1600
-   1.0 2000})
+(defn stop! [orchestra]
+  (-> orchestra
+      :engine
+      pink.engine/engine-stop))
 
-(defn get-click-hz [beat]
-  (utils.map/get-closest click-hzs (or (:stress beat) 0)))
+(defn get-current-beat [orchestra-or-instrument]
+  (-> orchestra-or-instrument
+      .engine
+      .event-list
+      .getCurBeat))
 
-(defrecord Click [id type engine node]
-  engine/Instrument
-  (mo->afn [_ mo] (synth-click (get-click-hz mo))))
+(defn get-expire-beat [instr]
+  @(:expire-beat-atom instr))
 
-(do
-  (def instr-factories
-    {:click map->Click})
+(defn expired? [instr]
+  (> (get-current-beat instr)
+     (get-expire-beat instr)))
 
-  (def orchestra (engine/new-orchestra instr-factories))
-  (def click-instr (engine/alloc-instr! orchestra :click-1 4))
-  (engine/start! orchestra)
+(defn prolong-expire-beat! [instr duration]
+  (let [expire-beat-atom (:expire-beat-atom instr)
+        cur-beat (get-current-beat instr)
+        new-expire-beat (+ cur-beat duration)]
+    (swap! expire-beat-atom max new-expire-beat))
+  instr)
 
-  (for [n (range 4)]
-    (do
-      (engine/schedule-play-instrument! click-instr (+ n 1/4) {:stress 1})
-      (engine/schedule-play-instrument! click-instr (+ n 2/4) {:stress 0})
-      (engine/schedule-play-instrument! click-instr (+ n 3/4) {:stress 0})
-      (engine/schedule-play-instrument! click-instr (+ n 4/4) {:stress 0})
-      ))
+(defn get-instr [orchestra instr-id]
+  (get @(:instrs-ref orchestra) instr-id))
 
-  (engine/get-current-beat orchestra)
-  ;;(engine/dealloc-expired-instrs! orchestra)
-  )
+(defn contains-instr? [orchestra instr]
+  (contains? @(:instrs-ref orchestra) (:id instr)))
+
+(defn attach-instr! [orchestra instr]
+  (dosync
+    (assert (not (contains-instr? orchestra instr)))
+    (alter (:instrs-ref orchestra) assoc (:id instr) instr)
+    (pink.engine/engine-add-afunc (:engine instr) (:node instr)))
+  instr)
+
+(defn detach-instr! [orchestra instr]
+  (dosync
+    (assert (contains-instr? orchestra instr))
+    (pink.engine/engine-remove-afunc (:engine instr) (:node instr))
+    (alter (:instrs-ref orchestra) dissoc (:id instr)))
+  instr)
+
+(defn find-instr-factory-fn [instr-factories instr-id]
+  (let [instr-type (music.instr/id->type instr-id)]
+    (get instr-factories instr-type)))
+
+(defn new-instr [orchestra instr-id]
+  (let [{:keys [engine instr-factories]} orchestra
+        map->instr (find-instr-factory-fn instr-factories instr-id)
+        new-mixer-node (pink.node/mixer-node)]
+    (map->instr {:id instr-id
+                 :engine engine
+                 :node new-mixer-node
+                 :expire-beat-atom (atom 0)})))
+
+(defn get-or-create!-instr [orchestra instr-id]
+  (dosync
+    (or (get-instr orchestra instr-id)
+        (->> (new-instr orchestra instr-id)
+             (attach-instr! orchestra)))))
+
+(defn alloc-instr! [orchestra instr-id duration]
+  (dosync
+    (ensure (:instrs-ref orchestra))
+    (->
+      (get-or-create!-instr orchestra instr-id)
+      (prolong-expire-beat! duration))))
+
+(defn dealloc-expired-instrs! [orchestra]
+  (dosync
+    (let [instrs-ref (:instrs-ref orchestra)
+          instrs-map (ensure instrs-ref)
+          instrs (vals instrs-map)]
+      (doseq [instr instrs]
+        (if (expired? instr)
+          (detach-instr! orchestra instr)))))
+  orchestra)
