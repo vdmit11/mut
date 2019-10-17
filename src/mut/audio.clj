@@ -53,7 +53,8 @@
 
   So this code relies on Pink, but with a hope that I can support different audio engines later.
   "
-  (:require [mut.utils.math :as utils.math]))
+  (:require [mut.utils.math :as utils.math]
+            [mut.audio.engine :as engine]))
 
 (require 'pink.engine)
 (require 'pink.node)
@@ -98,9 +99,9 @@
     {:click map->Click})
 
   (def orchestra (engine/new-orchestra instr-factories))
-  (def click-instr (engine/alloc-instr! orchestra :click-1))
+  (def click-instr (engine/alloc-instr! orchestra :click-1 4))
+  (engine/start! orchestra)
 
-  (pink.engine/engine-start (:engine orchestra))
   (for [n (range 4)]
     (do
       (engine/schedule-play-instrument! click-instr (+ n 1/4) {:stress 1})
@@ -108,4 +109,7 @@
       (engine/schedule-play-instrument! click-instr (+ n 3/4) {:stress 0})
       (engine/schedule-play-instrument! click-instr (+ n 4/4) {:stress 0})
       ))
+
+  (engine/get-current-beat orchestra)
+  ;;(engine/dealloc-expired-instrs! orchestra)
   )

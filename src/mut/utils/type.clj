@@ -7,3 +7,9 @@
 (defn satisfies-every?
   [protocols obj]
   (every? #(satisfies? % obj) protocols))
+
+(defn atom-containing-long?
+  [obj]
+  (and
+    (instance? clojure.lang.Atom)
+    (instance? java.lang.Long (deref obj))))

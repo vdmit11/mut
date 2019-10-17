@@ -16,7 +16,9 @@
   (:require pink.engine
             pink.node
             [clojure.spec.alpha :as s]
+            [medley.core :as medley]
             [mut.music.instr :as music.instr]
+            [mut.utils.type :as utils.type]
             [mut.audio.pink-utils :as pink-utils]))
 
 
@@ -61,10 +63,15 @@
   (s/and
     record?
     instrument?
-    (s/keys :req-un [::node ::engine])))
+    (s/keys
+      :req-un
+      [::node
+       ::engine
+       ::expire-beat-atom])))
 
 (s/def ::engine pink-utils/engine?)
 (s/def ::node pink-utils/mixer-node?)
+(s/def ::expire-beat-atom utils.type/atom-containing-long?)
 
 (defn play-instrument! [instr mo]
   (when-let [afn (mo->afn instr mo)]
@@ -107,23 +114,61 @@
 ;; to have an ability to refer them by ID (instead of direct reference to object).
 (defrecord Orchestra [engine instrs-ref instr-factories])
 
-(defn orchestra? [obj]
-  (instance? Orchestra obj))
-
-(s/def ::orchestra
-  (s/and
-    record?
-    orchestra?
-    (s/keys :req-un [::engine ::instrs-ref ::instr-factories])))
-
 (defn new-orchestra [instr-factories]
   (map->Orchestra
     {:engine (pink.engine/engine-create :nchnls 2)
      :instrs-ref (ref {})
      :instr-factories instr-factories}))
 
+(defn start! [orchestra]
+  (-> orchestra
+      :engine
+      pink.engine/engine-start))
+
+(defn stop! [orchestra]
+  (-> orchestra
+      :engine
+      pink.engine/engine-stop))
+
+(defn get-current-beat [orchestra-or-instrument]
+  (-> orchestra-or-instrument
+      .engine
+      .event-list
+      .getCurBeat))
+
+(defn get-expire-beat [instr]
+  @(:expire-beat-atom instr))
+
+(defn expired? [instr]
+  (> (get-current-beat instr)
+     (get-expire-beat instr)))
+
+(defn prolong-expire-beat! [instr duration]
+  (let [expire-beat-atom (:expire-beat-atom instr)
+        cur-beat (get-current-beat instr)
+        new-expire-beat (+ cur-beat duration)]
+    (swap! expire-beat-atom max new-expire-beat))
+  instr)
+
 (defn get-instr [orchestra instr-id]
   (get @(:instrs-ref orchestra) instr-id))
+
+(defn contains-instr? [orchestra instr]
+  (contains? @(:instrs-ref orchestra) (:id instr)))
+
+(defn attach-instr! [orchestra instr]
+  (dosync
+    (assert (not (contains-instr? orchestra instr)))
+    (alter (:instrs-ref orchestra) assoc (:id instr) instr)
+    (pink.engine/engine-add-afunc (:engine instr) (:node instr)))
+  instr)
+
+(defn detach-instr! [orchestra instr]
+  (dosync
+    (assert (contains-instr? orchestra instr))
+    (pink.engine/engine-remove-afunc (:engine instr) (:node instr))
+    (alter (:instrs-ref orchestra) dissoc (:id instr)))
+  instr)
 
 (defn find-instr-factory-fn [instr-factories instr-id]
   (let [instr-type (music.instr/id->type instr-id)]
@@ -135,16 +180,28 @@
         new-mixer-node (pink.node/mixer-node)]
     (map->instr {:id instr-id
                  :engine engine
-                 :node new-mixer-node})))
+                 :node new-mixer-node
+                 :expire-beat-atom (atom 0)})))
 
-(defn alloc-instr! [orchestra instr-id]
+(defn get-or-create!-instr [orchestra instr-id]
+  (dosync
+    (or (get-instr orchestra instr-id)
+        (->> (new-instr orchestra instr-id)
+             (attach-instr! orchestra)))))
+
+(defn alloc-instr! [orchestra instr-id duration]
+  (dosync
+    (ensure (:instrs-ref orchestra))
+    (->
+      (get-or-create!-instr orchestra instr-id)
+      (prolong-expire-beat! duration))))
+
+(defn dealloc-expired-instrs! [orchestra]
   (dosync
     (let [instrs-ref (:instrs-ref orchestra)
-          instrs-map (ensure instrs-ref)]
-      (or
-        (get instrs-map instr-id)
-        (let [instr (new-instr orchestra instr-id)]
-          (alter instrs-ref #(assoc % instr-id instr))
-          (pink.engine/engine-add-afunc (:engine instr) (:node instr))
-          instr)))))
-
+          instrs-map (ensure instrs-ref)
+          instrs (vals instrs-map)]
+      (doseq [instr instrs]
+        (if (expired? instr)
+          (detach-instr! orchestra instr)))))
+  orchestra)
