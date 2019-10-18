@@ -36,22 +36,24 @@
   audio.instr-proto/Instrument
   (mo->afn [instr mo] nil))
 
-(def instr-factories
+(def test-instr-factories
   {:test-piano map->TestPiano
    :test-guitar map->TestGuitar})
 
 (deftest allocate-instr-creates-new-instr-by-id-if-not-exists
-  (let [orchestra (audio/new-orchestra instr-factories)
-        before (audio/get-instr orchestra :test-piano)
-        alloc1 (audio/alloc-instr! orchestra :test-piano ##Inf)
-        alloc2 (audio/alloc-instr! orchestra :test-piano ##Inf)
-        after  (audio/get-instr orchestra :test-piano)]
-    (is (nil? before))
-    (is (identical? alloc1 alloc2))
-    (is (identical? alloc1 after))))
+  (with-redefs [audio/instr-factories test-instr-factories]
+    (let [orchestra (audio/new-orchestra)
+          before (audio/get-instr orchestra :test-piano)
+          alloc1 (audio/alloc-instr! orchestra :test-piano ##Inf)
+          alloc2 (audio/alloc-instr! orchestra :test-piano ##Inf)
+          after  (audio/get-instr orchestra :test-piano)]
+      (is (nil? before))
+      (is (identical? alloc1 alloc2))
+      (is (identical? alloc1 after)))))
 
 (deftest allocate-instr-constructs-records-guessing-type-from-id
-  (let [orchestra (audio/new-orchestra instr-factories)
+  (with-redefs [audio/instr-factories test-instr-factories]
+    (let [orchestra (audio/new-orchestra)
         piano   (audio/alloc-instr! orchestra :test-piano ##Inf)
         guitar1 (audio/alloc-instr! orchestra :test-guitar-1 ##Inf)
         guitar2 (audio/alloc-instr! orchestra :test-guitar-2 ##Inf)]
@@ -60,4 +62,4 @@
       (is (= "mut.audio_test.TestGuitar" (class-name guitar2)))
       (is (map-contains-submap? piano   {:id :test-piano}))
       (is (map-contains-submap? guitar1 {:id :test-guitar-1}))
-      (is (map-contains-submap? guitar2 {:id :test-guitar-2}))))
+      (is (map-contains-submap? guitar2 {:id :test-guitar-2})))))
