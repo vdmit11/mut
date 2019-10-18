@@ -54,6 +54,7 @@
   So this code relies on Pink, but with a hope that I can support different audio engines later.
   "
   (:require [mut.music.instr :as music.instr]
+            [mut.utils.ns :refer [autoload-namespaces]]
             pink.engine
             pink.node))
 
@@ -86,13 +87,12 @@
 ;;
 ;; So this is what this Orchestra below is about - keeping global list of allocated instruments
 ;; to have an ability to refer them by ID (instead of direct reference to object).
-(defrecord Orchestra [engine instrs-ref instr-factories])
+(defrecord Orchestra [engine instrs-ref])
 
-(defn new-orchestra [instr-factories]
+(defn new-orchestra []
   (map->Orchestra
     {:engine (pink.engine/engine-create :nchnls 2)
-     :instrs-ref (ref {})
-     :instr-factories instr-factories}))
+     :instrs-ref (ref {})}))
 
 (defn start! [orchestra]
   (-> orchestra
@@ -144,13 +144,16 @@
     (alter (:instrs-ref orchestra) dissoc (:id instr)))
   instr)
 
-(defn find-instr-factory-fn [instr-factories instr-id]
-  (let [instr-type (music.instr/id->type instr-id)]
-    (get instr-factories instr-type)))
+(autoload-namespaces
+  (def instr-factories
+    {:click mut.audio.instr.click/map->Click}))
+
+(defn find-instr-factory-fn [instr-id]
+  (instr-factories (music.instr/id->type instr-id)))
 
 (defn new-instr [orchestra instr-id]
-  (let [{:keys [engine instr-factories]} orchestra
-        map->instr (find-instr-factory-fn instr-factories instr-id)
+  (let [engine (:engine orchestra)
+        map->instr (find-instr-factory-fn instr-id)
         new-mixer-node (pink.node/mixer-node)]
     (map->instr {:id instr-id
                  :engine engine

@@ -45,3 +45,26 @@
   (mapcat
     (partial require-and-find-defs pred)
     (discover-sub-namespaces parent-ns)))
+
+(defn flatten-recursively [obj]
+  (if-not (seqable? obj)
+    (list obj)
+    (mapcat flatten-recursively (seq obj))))
+
+(defn find-symbols-in-form [form]
+  (filter symbol? (flatten-recursively form)))
+
+(defn load-namespace-of-symbol [sym]
+  (some-> (namespace sym) symbol require))
+
+(defn load-namespaces-of-symbols [seq-of-symbols]
+  (doall (map load-namespace-of-symbol seq-of-symbols)))
+
+(defn load-all-namespaces-of-form [form]
+  (load-namespaces-of-symbols (find-symbols-in-form form)))
+
+(defmacro autoload-namespaces
+  [& body]
+  `(do
+     (load-all-namespaces-of-form (quote ~body))
+     ~@body))
