@@ -54,24 +54,59 @@
   So this code relies on Pink, but with a hope that I can support different audio engines later.
   "
   (:require [mut.music.instr :as music.instr]
+            [mut.audio.instr-proto :as instr-proto :refer [get-current-beat]]
             [mut.utils.ns :refer [autoload-namespaces]]
             pink.engine
             pink.node))
 
-;; Orchestra of instruments.
+;; Here we have the Pink audio engine.
 ;;
-;; Problem: in order to play audio, you need to allocate resources, like:
-;;  - audio engine (`pink.engine.Engine`) running in a separate Thread
-;;  - audio node (`pink.node.Node`) for each instrument
-;;  - mutable instrument state (low-level audio buffers)
+;; It is a pure-clojure implementation of audio engine without any external dependencies.
+;; That is, the digital audio is synthesized entirely in Clojure, without talking to any external
+;; software or hardware synthesizers.
 ;;
-;; And in addition, you have to free all those resources manually
-;; (because GC doesn't know how to stop Threads and close audio outputs).
+;; So this is the main reason why Pink was chosen: no need to set up any external server and
+;; communicate with it over the network. Clojure and stock JVM is all you need.
 ;;
-;; So I (as a music generator, let't say) don't want to do that manually.
-;; I would like these things to happen automatically under the hood,
-;; while music is being synthesized/played.
+;; Initially, I planned to support multiple different audio engines at once, but that turned out
+;; to be a complexity booster that stopped me from progressing for many months.
+;; So eventually I gave up and decided to leave only one global instnance of audio engine here.
 ;;
+;; I still have a hope that in future I can bind different instruments to different audio engines,
+;; but at the moment all instruments are associated with the same nasty global singleton instance
+;; of audio engine. That is, all `:engine` members of all isntrument records are the same
+;; `global-pink-audio-engine` instance spawned below (with a chance that it will change in future).
+(defonce ^:private global-pink-audio-engine
+  (pink.engine/engine-create :nchnls 2))
+
+;; A place for keeping track of allocated instruments.
+;;
+;; The core abstraction in this `mut.audio` module is an "Instrument".
+;; An "Instrument" is a nasty OOP-style instance with mutable state.
+;; And, each Instrument is associated with its own mixer node in the Pink's audio synthesis graph.
+;;
+;; And that means that you have to explicitly allocate/deallocate instruments.
+;; If you forget to stop/deallocate the instrument, you have a resource leak: the instrument
+;; remains as a node in the audio synthesis graph, and basically it keeps producing sound forever.
+;;
+;; So, to deal with this resource management problem, we have this mutable `allocated-instrs` map,
+;; that looks like this:
+;;
+;;  {:piano #mut.audio.instr.piano/Piano{...}
+;;   :guitar-1 #mut.audio.instr.guitar/Guitar{...}
+;;   :guitar-2 #mut.audio.instr.guitar/Guitar{...}}
+;;
+;; So this is a map, where:
+;;  key is an instrument ID, used in music score to assign notes to specific instrument
+;;  value is an instrument record - an OOP-style instrance that contains mutable state
+;;
+;; Also instrument records (values in this map) conform to `mut.audio.instr-proto` protocols.
+(defonce allocated-instrs
+  (ref {}))
+
+;; Factories for creating new instrument objects.
+;;
+;; Problem: as a music generating code, I don't want to refer to allocated resources.
 ;; I would like to be able to just write some music score that looks as pure data,
 ;; that doesn't refer to any stateful objects (like threads or I/O ports).
 ;; I imagine it looking like this:
@@ -85,100 +120,159 @@
 ;; and I expect them to be allocated/deallocated automatically as the code enters/exits
 ;; corresponding sections of the music score during audio synthesis process.
 ;;
-;; So this is what this Orchestra below is about - keeping global list of allocated instruments
-;; to have an ability to refer them by ID (instead of direct reference to object).
-(defrecord Orchestra [engine instrs-ref])
+;; So the problem here is: when the code tries to synthesize the generated score, and it spots
+;; something like `:instr :guitar-1` in the score, how does it know which instrument to allocte?
+;; I mean, we can have multiple implementations of guitar instrument, how do we choose one?
+;;
+;; For that purpose we have this `instr-factories` map below.
+;; It is a map from a "type" to a function, that produces a concrete instrument "instance".
+(autoload-namespaces
+  (def ^:dynamic instr-factories
+    {:click mut.audio.instr.click/map->Click}))
 
-(defn new-orchestra []
-  (map->Orchestra
-    {:engine (pink.engine/engine-create :nchnls 2)
-     :instrs-ref (ref {})}))
+(defn find-instr-factory-fn
+  "Given an instrument ID, find a factory function that constructs a new instrument 'object'.
 
-(defn start! [orchestra]
-  (-> orchestra
-      :engine
-      pink.engine/engine-start))
+  One little trick with instrument IDs is that we encode instrument type inside the ID, like:
+    :piano-1 -> :piano
+    :electir-guitar-1 -> :electric-guitar
+    :electir-guitar-2 -> :electric-guitar
 
-(defn stop! [orchestra]
-  (-> orchestra
-      :engine
-      pink.engine/engine-stop))
+  So when we see such ID in the musical score, it is trivial to derive the type part from it,
+  and then find a corresponding function in the `instr-factories` map."
+  [instr-id]
+  (let [instr-type (music.instr/id->type instr-id)]
+    (or
+      (get instr-factories instr-type)
+      (throw (ex-info (format "Cannot find factory function for instrument: `%s`." instr-id)
+                      {:type :instr-factory-fn-not-found
+                       :instr-id instr-id
+                       :instr-type instr-type
+                       :available-types (keys instr-factories)})))))
 
-(defn get-current-beat [orchestra-or-instrument]
-  (-> orchestra-or-instrument
-      .engine
-      .event-list
-      .getCurBeat))
+;; Ok, now it should be more or less clear how instrument allocation works:
+;; when you play music, you look for instrument IDs in the score, and:
+;; If the ID is already present in the `allocated-instrs` map, then you're done.
+;; Otherwise, you use `instr-factories` to find a function that spawns a new instrument 'instance',
+;; and once it is spawned - you add it to the `allocated-instrs` map for future use.
+;;
+;; But then, how instruments are de-allocated? Instrument consume a significant amount of CPU and
+;; memory, so we can't let them live forever, and have to implement some sort of de-allocation.
+;;
+;; So the code below is dedicated to de-allocation.
+;; The idea is the following: we attach a timestamp called "expire beat" to each instrument.
+;; Once this expire time is reached, the instrument is de-allocated automatically.
+;;
+;; So when you call (play! music-object), under the hood it:
+;;  - analyzes the passed music object - splits it into parts by instrument
+;;  - pre-allocates each found instrument
+;;  - calculates when the music object should end, and sets "expire beat" to that calculated time
+;;
+;; So this way, you don't have to manage instrument state by hands.
+;; All instrument instances are allocated/deallocated automatically as the music is being played.
 
-(defn get-expire-beat [instr]
+
+(defn- get-expire-beat [instr]
   @(:expire-beat-atom instr))
 
-(defn expired? [instr]
+(defn- expired? [instr]
   (> (get-current-beat instr)
      (get-expire-beat instr)))
 
-(defn prolong-expire-beat! [instr duration]
+(defn- prolong-expire-beat! [instr duration]
   (let [expire-beat-atom (:expire-beat-atom instr)
         cur-beat (get-current-beat instr)
         new-expire-beat (+ cur-beat duration)]
     (swap! expire-beat-atom max new-expire-beat))
   instr)
 
-(defn get-instr [orchestra instr-id]
-  (get @(:instrs-ref orchestra) instr-id))
+;; Ok, now the allocation code: how instrument "instances" are actually created and initialized.
 
-(defn contains-instr? [orchestra instr]
-  (contains? @(:instrs-ref orchestra) (:id instr)))
-
-(defn attach-instr! [orchestra instr]
-  (dosync
-    (assert (not (contains-instr? orchestra instr)))
-    (alter (:instrs-ref orchestra) assoc (:id instr) instr)
-    (pink.engine/engine-add-afunc (:engine instr) (:node instr)))
+(defn add-instr-node-to-audio-synth-graph!
+  [instr]
+  (pink.engine/engine-add-afunc (:engine instr) (:node instr))
   instr)
 
-(defn detach-instr! [orchestra instr]
-  (dosync
-    (assert (contains-instr? orchestra instr))
-    (pink.engine/engine-remove-afunc (:engine instr) (:node instr))
-    (alter (:instrs-ref orchestra) dissoc (:id instr)))
+(defn remove-instr-node-from-audio-synth-graph!
+  [instr]
+  (pink.engine/engine-remove-afunc (:engine instr) (:node instr))
   instr)
 
-(autoload-namespaces
-  (def instr-factories
-    {:click mut.audio.instr.click/map->Click}))
-
-(defn find-instr-factory-fn [instr-id]
-  (instr-factories (music.instr/id->type instr-id)))
-
-(defn new-instr [orchestra instr-id]
-  (let [engine (:engine orchestra)
-        map->instr (find-instr-factory-fn instr-id)
+(defn- new-instr [instr-id]
+  (let [map->instr (find-instr-factory-fn instr-id)
         new-mixer-node (pink.node/mixer-node)]
     (map->instr {:id instr-id
-                 :engine engine
+                 :engine global-pink-audio-engine
                  :node new-mixer-node
                  :expire-beat-atom (atom 0)})))
 
-(defn get-or-create!-instr [orchestra instr-id]
-  (dosync
-    (or (get-instr orchestra instr-id)
-        (->> (new-instr orchestra instr-id)
-             (attach-instr! orchestra)))))
+(defn get-already-allocated-instr [instr-id]
+  (get @allocated-instrs instr-id))
 
-(defn alloc-instr! [orchestra instr-id duration]
+(defn- get-or-create-instr! [instr-id]
   (dosync
-    (ensure (:instrs-ref orchestra))
-    (->
-      (get-or-create!-instr orchestra instr-id)
-      (prolong-expire-beat! duration))))
+    (ensure allocated-instrs)
+    (or
+      (get-already-allocated-instr instr-id)
+      (let [instr (new-instr instr-id)]
+        (alter allocated-instrs assoc instr-id instr)
+        (add-instr-node-to-audio-synth-graph! instr)))))
 
-(defn dealloc-expired-instrs! [orchestra]
+(defn- remove-instr! [instr]
   (dosync
-    (let [instrs-ref (:instrs-ref orchestra)
-          instrs-map (ensure instrs-ref)
-          instrs (vals instrs-map)]
-      (doseq [instr instrs]
-        (if (expired? instr)
-          (detach-instr! orchestra instr)))))
-  orchestra)
+    (remove-instr-node-from-audio-synth-graph! instr)
+    (alter allocated-instrs dissoc (:id instr))))
+
+;; The two main instrument resource management functions below: allocate + deallocate.
+
+(defn alloc-instr! [instr-id duration]
+  (-> (get-or-create-instr! instr-id)
+      (prolong-expire-beat! duration)))
+
+(defn dealloc-expired-instrs! []
+  (doseq [[instr-id instr] @allocated-instrs]
+    (when (expired? instr)
+      (remove-instr! instr))))
+
+;; By the way, why did I use nasty global variables here?
+;; Wouldn't it be better to have some state object that you pass explicitly as an argument?
+;;
+;; The answer is: I already had that it in the past, it was called `Orchestra`, and it was an
+;; OOP-style object responsible for allocating instruments. And although that was good for unit
+;; tests, the REPL workflow became much harder.  In REPL, I always had to save instance of
+;; `orchestra` in a variable, and pass it everywhere. And the application code wasn't much better:
+;; the `orchestra` always ended up in a `let` block somewhere in a main loop - this is almost same
+;; as a global variable, except that you also have to pass it everywhere along the call stack.
+;;
+;; Perhaps I did it the wrong way, but I saw more drawbacks than benefits, and eventually I gave up
+;; and decided to remove `Orchestra`.  Now the audio engine state is stored in global `var`s.
+;;
+;; Then all functions in this file literally lost its 1st parameter.
+;; And although this is bad for unit tests, now it is much easier to use with REPL.
+;; And I play with REPL a lot over last couple of moths, so I choose the REPL-friendly approach.
+;; And the test-unfriendliness is mitigated by the helper macro below.
+
+(defmacro with-fresh-ass
+  "Create a new fresh audio system state, evaluate body, wipe it afterwards.
+
+  This is useful for unit tests, where you want to initialize a fresh state before each test,
+  and clean up the state after test is finished.
+  "
+  [new-instr-factories-map & body]
+  `(with-redefs [global-pink-audio-engine (pink.engine/engine-create :nchnls 2)
+                 allocated-instrs (ref {})
+                 instr-factories ~new-instr-factories-map]
+     (try
+       (do ~@body)
+       (finally (kill-em-all!)))))
+
+(defn kill-em-all!
+  "Remove all allocated instruments and stop the audio engine.
+
+  Useful if you got stuck with loud noise in your headphones."
+  []
+  (doseq [instr (vals @allocated-instrs)]
+    (remove-instr! instr))
+  (assert (empty? @allocated-instrs))
+  (pink.engine/engine-clear global-pink-audio-engine)
+  (pink.engine/engine-stop global-pink-audio-engine))

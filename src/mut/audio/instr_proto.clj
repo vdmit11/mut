@@ -53,6 +53,14 @@
 (s/def ::engine pink-utils/engine?)
 (s/def ::node pink-utils/mixer-node?)
 
+
+(defn get-current-beat
+  [instr]
+  (-> instr
+      :engine
+      .event-list
+      .getCurBeat))
+
 (defn play-instrument! [instr mo]
   (when-let [afn (mo->afn instr mo)]
     (pink.node/node-add-func (:node instr) afn)))
