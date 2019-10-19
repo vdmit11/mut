@@ -54,7 +54,8 @@
   So this code relies on Pink, but with a hope that I can support different audio engines later.
   "
   (:require [mut.music.instr :as music.instr]
-            [mut.audio.instr-proto :as instr-proto :refer [get-current-beat]]
+            [mut.audio.instr-proto :as instr-proto]
+            [mut.audio.pink-utils :refer [new-engine]]
             [mut.utils.ns :refer [autoload-namespaces]]
             pink.engine
             pink.node))
@@ -76,8 +77,7 @@
 ;; but at the moment all instruments are associated with the same nasty global singleton instance
 ;; of audio engine. That is, all `:engine` members of all isntrument records are the same
 ;; `global-pink-audio-engine` instance spawned below (with a chance that it will change in future).
-(defonce ^:private global-pink-audio-engine
-  (pink.engine/engine-create :nchnls 2))
+(defonce ^:private global-pink-audio-engine (new-engine))
 
 ;; A place for keeping track of allocated instruments.
 ;;
@@ -171,17 +171,22 @@
 ;; So this way, you don't have to manage instrument state by hands.
 ;; All instrument instances are allocated/deallocated automatically as the music is being played.
 
+(defn get-current-beat
+  []
+  (-> global-pink-audio-engine
+      .event-list
+      .getCurBeat))
 
 (defn- get-expire-beat [instr]
   @(:expire-beat-atom instr))
 
 (defn- expired? [instr]
-  (> (get-current-beat instr)
+  (> (get-current-beat)
      (get-expire-beat instr)))
 
 (defn- prolong-expire-beat! [instr duration]
   (let [expire-beat-atom (:expire-beat-atom instr)
-        cur-beat (get-current-beat instr)
+        cur-beat (get-current-beat)
         new-expire-beat (+ cur-beat duration)]
     (swap! expire-beat-atom max new-expire-beat))
   instr)
@@ -259,7 +264,7 @@
   and clean up the state after test is finished.
   "
   [new-instr-factories-map & body]
-  `(with-redefs [global-pink-audio-engine (pink.engine/engine-create :nchnls 2)
+  `(with-redefs [global-pink-audio-engine (new-engine)
                  allocated-instrs (ref {})
                  instr-factories ~new-instr-factories-map]
      (try
@@ -276,3 +281,14 @@
   (assert (empty? @allocated-instrs))
   (pink.engine/engine-clear global-pink-audio-engine)
   (pink.engine/engine-stop global-pink-audio-engine))
+
+
+(defn play! [mo]
+  (dealloc-expired-instrs!)
+  (pink.engine/engine-start global-pink-audio-engine)
+  (let [offset (or (:offset mo) 0)
+        duration (or (:duration mo) 1)
+        instr-id (or (:instr mo) :click)
+        instr (alloc-instr! instr-id (+ offset duration))
+        sched-beat (+ (get-current-beat) offset)]
+    (instr-proto/schedule-play-instrument! instr sched-beat mo)))

@@ -30,6 +30,13 @@
   [engine]
   (pink.event/use-absolute-time! (.event-list engine)))
 
+(defn new-engine
+  "A nullary constructor for `pink.engine/Engine` object, with pre-defined settings."
+  []
+  (let [engine (pink.engine/engine-create :nchnls 2)]
+    (switch-engine-to-absolute-time! engine)
+    engine))
+
 (defn end-when-silent
   "Execute audio function, examine the output buffer, and return `nil` if it contains silence.
 
