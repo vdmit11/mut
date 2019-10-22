@@ -57,6 +57,7 @@
             [mut.audio.instr-proto :as instr-proto]
             [mut.audio.pink-utils :refer [new-engine]]
             [mut.utils.ns :refer [autoload-namespaces]]
+            [taoensso.truss :refer [have]]
             pink.engine
             pink.node))
 
@@ -278,7 +279,7 @@
   []
   (doseq [instr (vals @allocated-instrs)]
     (remove-instr! instr))
-  (assert (empty? @allocated-instrs))
+  (have empty? @allocated-instrs)
   (pink.engine/engine-clear global-pink-audio-engine)
   (pink.engine/engine-stop global-pink-audio-engine))
 

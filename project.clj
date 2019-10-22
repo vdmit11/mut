@@ -32,6 +32,7 @@
                  [bultitude "0.2.8"]
                  [coercer "0.2.0"]
                  [com.rpl/specter "1.1.3"]
+                 [com.taoensso/truss "1.5.0"]
                  [kunstmusik/pink "0.4.1"]
                  [medley "1.2.0"]
                  [swiss-arrows "1.0.0"]]
