@@ -57,6 +57,7 @@
             [mut.audio.instr-proto :as instr-proto]
             [mut.audio.pink-utils :refer [new-engine]]
             [mut.utils.ns :refer [autoload-namespaces]]
+            [swiss.arrows :refer [-!>]]
             [taoensso.truss :refer [have]]
             pink.engine
             pink.node))
@@ -185,12 +186,11 @@
   (> (get-current-beat)
      (get-expire-beat instr)))
 
-(defn- prolong-expire-beat! [instr duration]
-  (let [expire-beat-atom (:expire-beat-atom instr)
-        cur-beat (get-current-beat)
-        new-expire-beat (+ cur-beat duration)]
-    (swap! expire-beat-atom max new-expire-beat))
-  instr)
+(defn- prolong-expire-beat! [instr new-expire-beat]
+  (-!>
+    instr
+    :expire-beat-atom
+    (swap! max new-expire-beat)))
 
 ;; Ok, now the allocation code: how instrument "instances" are actually created and initialized.
 
@@ -231,9 +231,9 @@
 
 ;; The two main instrument resource management functions below: allocate + deallocate.
 
-(defn alloc-instr! [instr-id duration]
+(defn alloc-instr! [instr-id expire-beat]
   (-> (get-or-create-instr! instr-id)
-      (prolong-expire-beat! duration)))
+      (prolong-expire-beat! expire-beat)))
 
 (defn dealloc-expired-instrs! []
   (doseq [[instr-id instr] @allocated-instrs]
@@ -290,6 +290,8 @@
   (let [offset (or (:offset mo) 0)
         duration (or (:duration mo) 1)
         instr-id (or (:instr mo) :click)
-        instr (alloc-instr! instr-id (+ offset duration))
-        sched-beat (+ (get-current-beat) offset)]
+        curr-beat (get-current-beat)
+        sched-beat (+ curr-beat offset)
+        expire-beat (+ sched-beat duration)
+        instr (alloc-instr! instr-id expire-beat)]
     (instr-proto/schedule-play-instrument! instr sched-beat mo)))
