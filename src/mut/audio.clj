@@ -212,33 +212,34 @@
                  :node new-mixer-node
                  :expire-beat-atom (atom 0)})))
 
-(defn get-already-allocated-instr [instr-id]
-  (get @allocated-instrs instr-id))
+;; The two main instrument resource management functions below: allocate + deallocate.
 
-(defn- get-or-create-instr! [instr-id]
+(defn alloc-instr! [instr-id]
   (dosync
     (ensure allocated-instrs)
     (or
-      (get-already-allocated-instr instr-id)
+      ;; get already allocated instrument
+      (get @allocated-instrs instr-id)
+      ;; create new instrument and add it to the ``allocated-instrs`` map
       (let [instr (new-instr instr-id)]
         (alter allocated-instrs assoc instr-id instr)
         (add-instr-node-to-audio-synth-graph! instr)))))
 
-(defn- remove-instr! [instr]
+(defn dealloc-instr! [instr]
   (dosync
     (remove-instr-node-from-audio-synth-graph! instr)
     (alter allocated-instrs dissoc (:id instr))))
 
-;; The two main instrument resource management functions below: allocate + deallocate.
+;; Plus, allocate/deallocate functions enhanced with "garbage collection" of expired instruments.
 
-(defn alloc-instr! [instr-id expire-beat]
-  (-> (get-or-create-instr! instr-id)
+(defn alloc-instr-with-expire-beat! [instr-id expire-beat]
+  (-> (alloc-instr! instr-id)
       (prolong-expire-beat! expire-beat)))
 
-(defn dealloc-expired-instrs! []
+(defn dealloc-all-expired-instrs! []
   (doseq [[instr-id instr] @allocated-instrs]
     (when (expired? instr)
-      (remove-instr! instr))))
+      (dealloc-instr! instr))))
 
 ;; By the way, why did I use nasty global variables here?
 ;; Wouldn't it be better to have some state object that you pass explicitly as an argument?
@@ -278,14 +279,14 @@
   Useful if you got stuck with loud noise in your headphones."
   []
   (doseq [instr (vals @allocated-instrs)]
-    (remove-instr! instr))
+    (dealloc-instr! instr))
   (have empty? @allocated-instrs)
   (pink.engine/engine-clear global-pink-audio-engine)
   (pink.engine/engine-stop global-pink-audio-engine))
 
 
 (defn play! [mo]
-  (dealloc-expired-instrs!)
+  (dealloc-all-expired-instrs!)
   (pink.engine/engine-start global-pink-audio-engine)
   (let [offset (or (:offset mo) 0)
         duration (or (:duration mo) 1)
@@ -293,5 +294,5 @@
         curr-beat (get-current-beat)
         sched-beat (+ curr-beat offset)
         expire-beat (+ sched-beat duration)
-        instr (alloc-instr! instr-id expire-beat)]
+        instr (alloc-instr-with-expire-beat! instr-id expire-beat)]
     (instr-proto/schedule-play-instrument! instr sched-beat mo)))
