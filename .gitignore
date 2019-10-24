@@ -6,6 +6,7 @@
 .lein-failures
 .lein-repl-history
 .nrepl-port
+.clj-kondo
 /checkouts/
 /dev-resources/clojure
 /classes/

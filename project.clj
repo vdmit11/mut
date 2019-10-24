@@ -30,6 +30,7 @@
                  [org.clojure/test.check "0.10.0"]
                  [acyclic/squiggly-clojure "0.1.8"]
                  [bultitude "0.2.8"]
+                 [clj-kondo "2019.10.11-alpha"]
                  [coercer "0.2.0"]
                  [com.rpl/specter "1.1.3"]
                  [com.taoensso/truss "1.5.0"]
@@ -44,4 +45,5 @@
             [lein-bikeshed "0.5.2"]
             [lein-environ "1.0.2"]
             [lein-marginalia "0.9.1"]]
+  :aliases {"clj-kondo" ["run" "-m" "clj-kondo.main"]}
   :env {:squiggly {:checkers [:eastwood :kibit]}})
