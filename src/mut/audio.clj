@@ -57,7 +57,6 @@
             [mut.audio.instr-proto :as instr-proto]
             [mut.audio.pink-utils :refer [new-engine]]
             [mut.utils.ns :refer [autoload-namespaces]]
-            [swiss.arrows :refer [-!>]]
             [taoensso.truss :refer [have]]
             pink.engine
             pink.node))
@@ -187,10 +186,8 @@
      (get-expire-beat instr)))
 
 (defn- prolong-expire-beat! [instr new-expire-beat]
-  (-!>
-    instr
-    :expire-beat-atom
-    (swap! max new-expire-beat)))
+  (swap! (:expire-beat-atom instr) max new-expire-beat)
+  instr)
 
 ;; Ok, now the allocation code: how instrument "instances" are actually created and initialized.
 
@@ -233,11 +230,12 @@
 ;; Plus, allocate/deallocate functions enhanced with "garbage collection" of expired instruments.
 
 (defn alloc-instr-with-expire-beat! [instr-id expire-beat]
-  (-> (alloc-instr! instr-id)
+  (-> instr-id
+      alloc-instr!
       (prolong-expire-beat! expire-beat)))
 
 (defn dealloc-all-expired-instrs! []
-  (doseq [[instr-id instr] @allocated-instrs]
+  (doseq [instr (vals @allocated-instrs)]
     (when (expired? instr)
       (dealloc-instr! instr))))
 

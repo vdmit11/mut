@@ -14,12 +14,12 @@
   (end-when-silent
     (sum
       (->
-        (oscillators/pulse 0 50)
+        (oscillators/pulse 0 50.0)
         (filters/zdf-2pole hz 40.0 zdf-mode-bandpass)
         (filters/zdf-2pole 2000 0.6 zdf-mode-lowpass))
       (->
-        (drums/g-noise 40)
-        (mul (drums/exp-decay 0.001 1000))
+        (drums/g-noise 40.0)
+        (mul (drums/exp-decay 0.001 1000.0))
         (filters/zdf-2pole hz 4 zdf-mode-bandpass)))))
 
 (def click-hzs
