@@ -211,12 +211,14 @@
 
 ;; The two main instrument resource management functions below: allocate + deallocate.
 
+(defn get-already-allocated-instr [instr-id]
+  (get @allocated-instrs instr-id))
+
 (defn alloc-instr! [instr-id]
   (dosync
     (ensure allocated-instrs)
     (or
-      ;; get already allocated instrument
-      (get @allocated-instrs instr-id)
+      (get-already-allocated-instr instr-id)
       ;; create new instrument and add it to the ``allocated-instrs`` map
       (let [instr (new-instr instr-id)]
         (alter allocated-instrs assoc instr-id instr)

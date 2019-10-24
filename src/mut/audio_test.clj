@@ -43,8 +43,8 @@
 (deftest allocate-instr-creates-new-instr-by-id-if-not-exists
   (audio/with-fresh-ass test-instr-factories
     (let [before (audio/get-already-allocated-instr :test-piano)
-          alloc1 (audio/alloc-instr! :test-piano ##Inf)
-          alloc2 (audio/alloc-instr! :test-piano ##Inf)
+          alloc1 (audio/alloc-instr! :test-piano)
+          alloc2 (audio/alloc-instr! :test-piano)
           after  (audio/get-already-allocated-instr :test-piano)]
       (is (nil? before))
       (is (identical? alloc1 alloc2))
@@ -52,9 +52,9 @@
 
 (deftest allocate-instr-constructs-records-guessing-type-from-id
   (audio/with-fresh-ass test-instr-factories
-    (let [piano   (audio/alloc-instr! :test-piano ##Inf)
-          guitar1 (audio/alloc-instr! :test-guitar-1 ##Inf)
-          guitar2 (audio/alloc-instr! :test-guitar-2 ##Inf)]
+    (let [piano   (audio/alloc-instr! :test-piano)
+          guitar1 (audio/alloc-instr! :test-guitar-1)
+          guitar2 (audio/alloc-instr! :test-guitar-2)]
       (is (= "mut.audio_test.TestPiano" (class-name piano)))
       (is (= "mut.audio_test.TestGuitar" (class-name guitar1)))
       (is (= "mut.audio_test.TestGuitar" (class-name guitar2)))
